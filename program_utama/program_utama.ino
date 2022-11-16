@@ -1,70 +1,69 @@
 #include <Adafruit_Fingerprint.h>
 #include <SPI.h>
-#include <Wire.h>
+#include <Wire.h> 
 #include <LiquidCrystal_I2C.h>
 #include <SoftwareSerial.h>
 
 //------------------------------------lcd keypad------------------------------------
 
-LiquidCrystal_I2C lcd(0x27, 16, 2);// pin lcd yang di gunakan
+// Set the LCD address to 0x27 for a 16 chars and 2 line display
+LiquidCrystal_I2C lcd(0x27, 16, 2);
 
 
 SoftwareSerial mySerial(2, 3); //Inisialisasi serial RX TX modul fingerprint
 SoftwareSerial espcam(9,10);
 int buzz = 4;
-int relay = 5;
+int relay = 8;
 
-int val, limS = 7;
+int val, limS = 6;
 
 bool keamanan = true;
 
 Adafruit_Fingerprint finger = Adafruit_Fingerprint(&mySerial);
 
 void setup() {
-    Serial.begin(9600);
-    //-----------------------------------------espcam--------------------------
-    espcam.begin(9600);
-    //-----------------------------------------buz,rel,LS--------------------------
-    pinMode(buzz, OUTPUT);
-    pinMode(relay, OUTPUT);
-    pinMode(limS, INPUT);
-    //-----------------------------------------fingerprint--------------------------
-    Serial.println("nnAdafruit finger detect test");
-    // set the data rate for the sensor serial port
-    finger.begin(57600);
-    if (finger.verifyPassword()) {
-        Serial.println("Found fingerprint sensor!");
-    } else {
-        Serial.println("Did not find fingerprint sensor :(");
-        while (1) {
-            delay(1);
-        }
-    }
-    finger.getTemplateCount();
-    Serial.print("Sensor contains ");
-    Serial.print(finger.templateCount);
-    Serial.println(" templates");
-    Serial.println("Waiting for valid finger...");
+  Serial.begin(115200);
+  //-----------------------------------------espcam--------------------------
+  espcam.begin(9600);
 
-    lcd.begin();
-    lcd.clear();
-    lcd.setCursor(0, 0);
-    lcd.print("Buka Dengan ");
-    lcd.setCursor(0, 1);
-    lcd.print("Fingerprint");
+  //-------------------------------------LCD---------------------------------
+  lcd.begin();
+  lcd.backlight();
+
+  //-----------------------------------------buz,rel,LS--------------------------
+  pinMode(buzz, OUTPUT);
+  pinMode(relay, OUTPUT);
+  pinMode(limS, INPUT);
+  digitalWrite(relay, HIGH);
+  //-----------------------------------------fingerprint--------------------------
+  Serial.println("nnAdafruit finger detect test");
+  // set the data rate for the sensor serial port
+  finger.begin(57600);
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  
+  lcd.print("Buka Dengan ");
+  lcd.setCursor(0, 1);
+  lcd.print("Fingerprint");
+  
 }
 
 void loop() {
-    getFingerprintID();
+  
+  getFingerprintID();
 
-    val = digitalRead(limS);
-    Serial.println(val);
-    if (keamanan == true && val == 0){
-      keamanan_terganggu(); 
-    }else{
-      digitalWrite(buzz, LOW);
-    }
-    delay(100);
+  val = digitalRead(limS);
+  Serial.println(val);
+  if (keamanan == true && val == 0){
+    digitalWrite(buzz, HIGH);
+    lcd.clear();
+    lcd.setCursor(2, 0);
+    lcd.print("ADA PENYUSUP");
+    espcam.write("photo");
+  }else{
+    digitalWrite(buzz, LOW);
+  }
+  delay(100);
     
 }
 
@@ -116,8 +115,35 @@ uint8_t getFingerprintID() {
     // OK converted!---------------------------------------------
     p = finger.fingerFastSearch();
     if (p == FINGERPRINT_OK) { //jika fingerprint terdeteksi
+        Serial.println("Found a print match!");
+        lcd.clear();
+        lcd.setCursor(0, 0);
+        lcd.print("PROSES . . .");
+        espcam.write("photo");
+        delay(5000);
         keamanan = false;
-        buka();
+        lcd.clear();
+        lcd.setCursor(0, 0);
+        lcd.print("BERHASIL");
+        lcd.setCursor(0, 1);
+        lcd.print("TERIDENTIFIKASI");
+        digitalWrite(relay, LOW);
+        lcd.clear();
+        lcd.setCursor(0, 0);
+        lcd.print("AutoLock ");
+        for (int i = 9; i > 0; i--) {
+            lcd.setCursor(9, 0);
+            lcd.print(i);
+            delay(3000);
+        }
+        digitalWrite(relay, HIGH);
+        lcd.clear();
+        lcd.setCursor(0, 0);
+        lcd.print("Buka Dengan ");
+        lcd.setCursor(0, 1);
+        lcd.print("Fingerprint");
+        keamanan = true;
+        
     } else if (p == FINGERPRINT_PACKETRECIEVEERR) {
         Serial.println("Communication error");
         return p;
@@ -129,11 +155,11 @@ uint8_t getFingerprintID() {
         lcd.setCursor(0, 1);
         lcd.print("TERIDENTIFIKASI");
         espcam.write("photo");
-        delay(500);
-        lcd.setCursor(20, 0);
+        delay(1000);
+        lcd.clear();
+        lcd.setCursor(0, 0);
         lcd.print("COBA LAGI");
-        delay(2000);
-        
+        delay(2000);     
         return p;
     } else {
         Serial.println("Unknown error");
@@ -146,34 +172,3 @@ uint8_t getFingerprintID() {
     return finger.fingerID;
 }
 //-----------------------------------------------------------------------------
-
-void buka(){
-  Serial.println("Found a print match!");
-  lcd.clear();
-  lcd.setCursor(0, 0);
-  lcd.print("BERHASIL");
-  lcd.setCursor(0, 1);
-  lcd.print("TERIDENTIFIKASI");
-  espcam.write("photo");
-  digitalWrite(relay, HIGH);
-  lcd.print("AutoLock ");
-  for (int i = 10; i > 0; i--) {
-      lcd.setCursor(30, 0);
-      lcd.print(i);
-      delay(1000);
-  }
-  digitalWrite(relay, LOW);
-  lcd.clear();
-  lcd.setCursor(0, 0);
-  lcd.print("Buka Dengan ");
-  lcd.setCursor(0, 1);
-  lcd.print("Fingerprint");
-}
-
-void keamanan_terganggu(){
-  digitalWrite(buzz, HIGH);
-  lcd.clear();
-  lcd.setCursor(4, 0);
-  lcd.print("PENYUSUP");
-  espcam.write("photo");
-}
